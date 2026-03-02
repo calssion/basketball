@@ -1,0 +1,8 @@
+{
+  "name": "underwater-ring-toss",
+  "version": "1.0.0",
+  "description": "2.5D/3D underwater ring-toss arcade game",
+  "dependencies": {
+    "three": "^0.160.0"
+  }
+}
