@@ -1,5 +1,5 @@
 /* ============================================================
-   水中投籃  –  Water Basketball
+   水中投篮  –  Water Basketball
    game.js  –  Main game script (Three.js r160, custom physics)
    ============================================================ */
 'use strict';
@@ -806,13 +806,18 @@ function aiAutoThrow() {
     if (pts0[i].y >= CFG.HOOP_Y) { flightTime = (i + 1) * CFG.TRAJ_DT; break; }
   }
 
-  /* Predict where the hoop will be when the ball arrives */
+  /* Predict where the hoop will be when the ball arrives.
+   * hoopSpdRad = actual angular speed in rad/s; CFG.HOOP_SPD is the baseline
+   * value for difficulty 'medium' (hoopSpd factor = 0.65 for medium). */
   const hoopSpdRad = CFG.HOOP_SPD * CFG.DIFF[GS.difficulty].hoopSpd / 0.65;
   const predictedHoopX = Math.sin(hoopT + hoopSpdRad * (flightTime + 0.5)) * CFG.HOOP_AMP;
   let targetX = predictedHoopX;
 
-  /* Iterative refinement of vx — better initial guess, more iterations */
-  let vx = targetX * 2.0;  // roughly correct (water drag means vx must be ~2× targetX)
+  /* Iterative refinement of vx.
+   * Starting guess ~2× target accounts for water drag (ball travels ~half
+   * the distance its vx "would" cover in free flight). Each iteration corrects
+   * the x error at hoop height; 8 iterations give < 0.02 unit accuracy. */
+  let vx = targetX * 2.0;
   for (let iter = 0; iter < 8; iter++) {
     const pts = simulateTrajectory(vx, power);
     let closest = null, minD = Infinity;
