@@ -558,8 +558,20 @@ class Ball {
       this.vel.z *= -CFG.BOUNCE_DAMP;
     }
 
-    /* ── Hoop rim collision ── */
-    if (Math.abs(this.pos.y - CFG.HOOP_Y) < CFG.BALL_R + CFG.HOOP_T * 2.5) {
+    /* ── Score check FIRST: ball crosses HOOP_Y going upward ── */
+    if (!this.scored && this.vel.y > 0 &&
+        this.prevY < CFG.HOOP_Y && this.pos.y >= CFG.HOOP_Y) {
+      const dx = this.pos.x - hoopGroup.position.x;
+      const dz = this.pos.z - hoopGroup.position.z;
+      const dist2D = Math.sqrt(dx * dx + dz * dz);
+      if (dist2D < CFG.HOOP_R - CFG.BALL_R * 0.4) {
+        onBallScored();
+        this.scored = true;
+      }
+    }
+
+    /* ── Hoop rim collision (only if not already scored) ── */
+    if (!this.scored && Math.abs(this.pos.y - CFG.HOOP_Y) < CFG.BALL_R + CFG.HOOP_T * 2.5) {
       const dx = this.pos.x - hoopGroup.position.x;
       const dz = this.pos.z - hoopGroup.position.z;
       const distFromCenter = Math.sqrt(dx * dx + dz * dz);
@@ -570,20 +582,9 @@ class Ball {
         const dot = this.vel.x * nx + this.vel.z * nz;
         this.vel.x  = (this.vel.x - 2 * dot * nx) * CFG.BOUNCE_DAMP;
         this.vel.z  = (this.vel.z - 2 * dot * nz) * CFG.BOUNCE_DAMP;
-        this.vel.y *= CFG.BOUNCE_DAMP;
+        // The rim is horizontal — do NOT damp vertical velocity so the ball can
+        // still rise through the hoop after a glancing rim contact.
         spawnBounceParticle(this.pos.x, this.pos.y, this.pos.z);
-      }
-    }
-
-    /* ── Score check: ball crosses HOOP_Y going upward ── */
-    if (!this.scored && this.vel.y > 0 &&
-        this.prevY < CFG.HOOP_Y && this.pos.y >= CFG.HOOP_Y) {
-      const dx = this.pos.x - hoopGroup.position.x;
-      const dz = this.pos.z - hoopGroup.position.z;
-      const dist2D = Math.sqrt(dx * dx + dz * dz);
-      if (dist2D < CFG.HOOP_R - CFG.BALL_R * 0.4) {
-        onBallScored();
-        this.scored = true;
       }
     }
 
@@ -791,23 +792,38 @@ function updateTrajectoryLine() {
 
 /**
  * AI auto-throw: find vx to land ball at hoop x, then throw after 500 ms.
+ * Accounts for hoop movement during the ball's flight time.
  */
 function aiAutoThrow() {
   if (GS.phase !== 'playing' || GS.ballsLeft <= 0 || !GS.waitingToShoot) return;
 
-  const power   = CFG.MIN_POWER + (CFG.MAX_POWER - CFG.MIN_POWER) * 0.6;
-  const targetX = hoopGroup.position.x;
+  const power = CFG.MIN_POWER + (CFG.MAX_POWER - CFG.MIN_POWER) * 0.6;
 
-  /* Iterative refinement of vx (3 iterations) */
-  let vx = targetX * 0.5;
-  for (let iter = 0; iter < 3; iter++) {
+  /* Estimate flight time to HOOP_Y using a vertical-only simulation */
+  const pts0 = simulateTrajectory(0, power);
+  let flightTime = 0.8; // fallback
+  for (let i = 0; i < pts0.length; i++) {
+    if (pts0[i].y >= CFG.HOOP_Y) { flightTime = (i + 1) * CFG.TRAJ_DT; break; }
+  }
+
+  /* Predict where the hoop will be when the ball arrives */
+  const hoopSpdRad = CFG.HOOP_SPD * CFG.DIFF[GS.difficulty].hoopSpd / 0.65;
+  const predictedHoopX = Math.sin(hoopT + hoopSpdRad * (flightTime + 0.5)) * CFG.HOOP_AMP;
+  let targetX = predictedHoopX;
+
+  /* Iterative refinement of vx — better initial guess, more iterations */
+  let vx = targetX * 2.0;  // roughly correct (water drag means vx must be ~2× targetX)
+  for (let iter = 0; iter < 8; iter++) {
     const pts = simulateTrajectory(vx, power);
     let closest = null, minD = Infinity;
     for (const p of pts) {
       const d = Math.abs(p.y - CFG.HOOP_Y);
       if (d < minD) { minD = d; closest = p; }
     }
-    if (closest) vx += (targetX - closest.x) * 0.8;
+    if (!closest) break;
+    const errX = targetX - closest.x;
+    if (Math.abs(errX) < 0.02) break;  // converged
+    vx += errX * 0.85;
   }
 
   /* Add difficulty scatter */

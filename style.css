@@ -317,6 +317,7 @@ body {
   display: inline-block;
 }
 .dot-red    { background: #ff4444; }
+.dot-orange { background: #ff6600; box-shadow: 0 0 5px #ff660088; }
 .dot-yellow { background: #ffcc00; }
 .dot-blue   { background: #33aaff; }
 .dot-gold   { background: #ffd700; box-shadow: 0 0 6px #ffd70088; }
