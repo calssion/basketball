@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>水中套圈 – Underwater Ring Toss</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ── 3-D canvas ──────────────────────────────────────────── -->
+<canvas id="game-canvas"></canvas>
+
+<!-- ── UI layer ───────────────────────────────────────────── -->
+<div id="ui">
+
+  <!-- HUD bar -->
+  <div id="hud">
+    <div class="hud-item" id="hud-score">
+      <span class="hud-label">得分 Score</span>
+      <span class="hud-value" id="hud-score-val">0</span>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-item" id="hud-timer">
+      <span class="hud-label">时间 Time</span>
+      <span class="hud-value" id="hud-timer-val">90</span>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-item" id="hud-rings">
+      <span class="hud-label">圈数 Rings</span>
+      <span class="hud-value" id="hud-rings-val">20</span>
+    </div>
+    <div class="hud-sep"></div>
+    <div class="hud-item" id="hud-hi">
+      <span class="hud-label">最高 Best</span>
+      <span class="hud-value" id="hud-hi-val">0</span>
+    </div>
+    <!-- Water-current direction indicator -->
+    <div class="hud-sep"></div>
+    <div class="hud-item" title="Water current direction">
+      <span class="hud-label">水流 Current</span>
+      <span id="current-arrow" style="font-size:20px;display:block;text-align:center;line-height:1;">→</span>
+    </div>
+  </div>
+
+  <!-- Combo popup -->
+  <div id="combo-popup"></div>
+
+  <!-- Charge power bar -->
+  <div id="power-bar-wrap">
+    <span id="power-label">Hold to charge · 按住蓄力</span>
+    <div id="power-bar-outer">
+      <div id="power-bar-inner"></div>
+    </div>
+  </div>
+
+  <!-- AI & difficulty controls -->
+  <div id="ai-panel">
+    <button id="btn-ai-assist" class="ai-btn" title="Show trajectory prediction">
+      🤖 AI 瞄准辅助
+    </button>
+    <button id="btn-ai-throw" class="ai-btn" title="AI throws the next ring">
+      🎯 AI 自动投掷
+    </button>
+    <select id="diff-select" class="ai-btn" title="Difficulty">
+      <option value="easy">简单 Easy</option>
+      <option value="medium" selected>普通 Normal</option>
+      <option value="hard">困难 Hard</option>
+    </select>
+  </div>
+
+  <!-- Hit flash border -->
+  <div id="hit-flash"></div>
+
+  <!-- ── START SCREEN ──────────────────────────────────────── -->
+  <div class="screen" id="start-screen">
+    <h1>🌊 水中套圈 🎯</h1>
+    <h2>Underwater Ring Toss</h2>
+
+    <p>将圆圈投入水中，套住彩色桩子得分！<br>
+       Toss rings into the water tank and land them on the coloured pegs!</p>
+
+    <div class="instructions">
+      <div class="instr-chip">🖱️ 移动鼠标瞄准<br>Move mouse to aim</div>
+      <div class="instr-chip">🖱️ 按住蓄力<br>Hold to charge power</div>
+      <div class="instr-chip">🖱️ 松开投掷<br>Release to throw</div>
+      <div class="instr-chip">💧 水流偏移圆圈<br>Water current drifts rings</div>
+      <div class="instr-chip">🔗 连续命中加倍<br>Consecutive hits = combo!</div>
+      <div class="instr-chip">🤖 AI 辅助显示弹道<br>AI assist shows trajectory</div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="dot dot-red"></span>   1 pt</div>
+      <div class="legend-item"><span class="dot dot-yellow"></span> 2 pts</div>
+      <div class="legend-item"><span class="dot dot-blue"></span>   3 pts</div>
+      <div class="legend-item"><span class="dot dot-gold"></span>   5 pts ⭐</div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;">
+      <label style="font-size:14px;color:#88bbdd;">难度 Difficulty:</label>
+      <select id="diff-select-start" class="ai-btn"
+              onchange="document.getElementById('diff-select').value=this.value;">
+        <option value="easy">简单 Easy</option>
+        <option value="medium" selected>普通 Normal</option>
+        <option value="hard">困难 Hard</option>
+      </select>
+    </div>
+
+    <button id="btn-start" class="btn-primary">开始游戏 Start!</button>
+  </div>
+
+  <!-- ── GAME OVER SCREEN ──────────────────────────────────── -->
+  <div class="screen hidden" id="gameover-screen">
+    <h1>游戏结束 Game Over</h1>
+    <div class="final-score" id="final-score">0</div>
+    <div class="stat-row">
+      <div>最高记录 Best: <span id="hi-score-go">0</span></div>
+    </div>
+    <div class="stat-row">
+      <div>投出 Thrown: <span id="go-rings-thrown">—</span></div>
+      <div>命中 Hits: <span id="go-rings-hit">—</span></div>
+    </div>
+    <button id="btn-restart" class="btn-primary">再来一局 Play Again</button>
+  </div>
+
+</div><!-- /#ui -->
+
+<!-- ── Three.js r160 (local copy) ─────────────────────────── -->
+<script src="three.min.js"></script>
+<!-- ── Game ─────────────────────────────────────────────────── -->
+<script src="game.js"></script>
+
+</body>
+</html>
