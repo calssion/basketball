@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>水中套圈 – Underwater Ring Toss</title>
+  <title>水中投篮 – Water Basketball</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -27,7 +27,7 @@
     </div>
     <div class="hud-sep"></div>
     <div class="hud-item" id="hud-rings">
-      <span class="hud-label">圈数 Rings</span>
+      <span class="hud-label">球数 Balls</span>
       <span class="hud-value" id="hud-rings-val">20</span>
     </div>
     <div class="hud-sep"></div>
@@ -59,8 +59,8 @@
     <button id="btn-ai-assist" class="ai-btn" title="Show trajectory prediction">
       🤖 AI 瞄准辅助
     </button>
-    <button id="btn-ai-throw" class="ai-btn" title="AI throws the next ring">
-      🎯 AI 自动投掷
+    <button id="btn-ai-throw" class="ai-btn" title="AI shoots the next ball">
+      🏀 AI 自动投篮
     </button>
     <select id="diff-select" class="ai-btn" title="Difficulty">
       <option value="easy">简单 Easy</option>
@@ -74,26 +74,26 @@
 
   <!-- ── START SCREEN ──────────────────────────────────────── -->
   <div class="screen" id="start-screen">
-    <h1>🌊 水中套圈 🎯</h1>
-    <h2>Underwater Ring Toss</h2>
+    <h1>🌊 水中投篮 🏀</h1>
+    <h2>Water Basketball</h2>
 
-    <p>将圆圈投入水中，套住彩色桩子得分！<br>
-       Toss rings into the water tank and land them on the coloured pegs!</p>
+    <p>将篮球射入水中的篮框得分！<br>
+       Shoot the ball through the oscillating hoop to score!</p>
 
     <div class="instructions">
-      <div class="instr-chip">🖱️ 移动鼠标瞄准<br>Move mouse to aim</div>
+      <div class="instr-chip">🖱️ 移动鼠标瞄准<br>Move mouse to aim left/right</div>
       <div class="instr-chip">🖱️ 按住蓄力<br>Hold to charge power</div>
-      <div class="instr-chip">🖱️ 松开投掷<br>Release to throw</div>
-      <div class="instr-chip">💧 水流偏移圆圈<br>Water current drifts rings</div>
-      <div class="instr-chip">🔗 连续命中加倍<br>Consecutive hits = combo!</div>
-      <div class="instr-chip">🤖 AI 辅助显示弹道<br>AI assist shows trajectory</div>
+      <div class="instr-chip">🖱️ 松开投篮<br>Release to shoot</div>
+      <div class="instr-chip">🏀 篮框左右移动<br>Hoop moves left &amp; right</div>
+      <div class="instr-chip">💧 水流偏移球路<br>Water current drifts ball</div>
+      <div class="instr-chip">🔗 连续命中加倍<br>Consecutive shots = combo!</div>
     </div>
 
     <div class="legend">
-      <div class="legend-item"><span class="dot dot-red"></span>   1 pt</div>
-      <div class="legend-item"><span class="dot dot-yellow"></span> 2 pts</div>
-      <div class="legend-item"><span class="dot dot-blue"></span>   3 pts</div>
-      <div class="legend-item"><span class="dot dot-gold"></span>   5 pts ⭐</div>
+      <div class="legend-item"><span class="dot dot-orange"></span> 1 pt base</div>
+      <div class="legend-item"><span class="dot dot-yellow"></span> ×2 combo</div>
+      <div class="legend-item"><span class="dot dot-blue"></span>   ×3 combo</div>
+      <div class="legend-item"><span class="dot dot-gold"></span>   ×5 combo ⭐</div>
     </div>
 
     <div style="display:flex;gap:12px;align-items:center;">
@@ -118,7 +118,7 @@
     </div>
     <div class="stat-row">
       <div>投出 Thrown: <span id="go-rings-thrown">—</span></div>
-      <div>命中 Hits: <span id="go-rings-hit">—</span></div>
+      <div>命中 Scored: <span id="go-rings-hit">—</span></div>
     </div>
     <button id="btn-restart" class="btn-primary">再来一局 Play Again</button>
   </div>

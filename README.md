@@ -1,6 +1,6 @@
-# 🌊 水中套圈 – Underwater Ring Toss
+# 🌊 水中投篮 – Water Basketball
 
-A browser-based **2.5 D / 3 D underwater ring-toss arcade game** built with [Three.js](https://threejs.org/).
+A browser-based **3-D water basketball arcade game** built with [Three.js](https://threejs.org/), inspired by the classic handheld water basketball toy (水中投篮机).
 
 ---
 
@@ -10,29 +10,31 @@ Open `index.html` directly in any modern browser – no build step or server req
 
 | Action | Input |
 |--------|-------|
-| Aim | Move the mouse over the water tank |
-| Charge throw | Click **and hold** (power bar fills) |
-| Throw ring | Release the mouse button |
-| AI trajectory | Toggle **🤖 AI 瞄准辅助** to see the predicted ring path |
-| AI auto-throw | Click **🎯 AI 自动投掷** and the AI will throw for you |
+| Aim left / right | Move the mouse horizontally |
+| Charge throw power | Click **and hold** (power bar fills) |
+| Shoot | Release the mouse button |
+| AI trajectory | Toggle **🤖 AI 瞄准辅助** to see the predicted ball path |
+| AI auto-shoot | Click **🏀 AI 自动投篮** and the AI will shoot for you |
 
 ---
 
 ## 🎮 Game Rules
 
-* You have **20 rings** and **90 seconds** per round.
-* Aim above the water surface and release to drop a ring into the tank.
-* **Water current** drifts rings sideways – check the arrow in the HUD.
-* Land a ring around a peg to score:
+* You have **20 balls** and **90 seconds** per round.
+* The hoop oscillates **left and right** – time your shot carefully!
+* Aim horizontally with your mouse, charge power by holding, release to shoot.
+* **Water current** drifts the ball sideways – watch the arrow in the HUD.
+* Score when the ball passes **upward through the hoop**:
 
-| Peg colour | Points |
-|-----------|--------|
-| 🔴 Red | 1 pt |
-| 🟡 Yellow | 2 pts |
-| 🔵 Blue | 3 pts |
-| ⭐ Gold (centre) | 5 pts |
+| Shot | Points |
+|------|--------|
+| Clean basket | 1 pt (base) |
+| 2× combo | 2 pts |
+| 3× combo | 3 pts |
+| 4× combo | 4 pts |
+| 5× combo (max) | 5 pts ⭐ |
 
-* **Combo multiplier** – consecutive catches stack up to **5×**.
+* **Combo multiplier** – consecutive baskets stack up to **5×**.
 
 ---
 
@@ -40,15 +42,15 @@ Open `index.html` directly in any modern browser – no build step or server req
 
 | Feature | Description |
 |---------|-------------|
-| AI Trajectory | Simulates the ring's full physics path (air + water + current) and draws it as a line |
-| AI Auto-Throw | Solves the optimal aim position for the highest-value uncaught peg and throws automatically |
-| Difficulty | **Easy** – weak current, small scatter · **Normal** · **Hard** – strong current, wider scatter |
+| AI Trajectory | Simulates the ball's full physics path (buoyancy + drag + current) and draws it as a line |
+| AI Auto-Shoot | Solves the optimal vx for the current hoop position and shoots automatically |
+| Difficulty | **Easy** – slow hoop, small scatter · **Normal** · **Hard** – fast hoop, wider scatter |
 
 ---
 
 ## 🛠 Tech Stack
 
 * **Three.js r160** – 3D scene, custom GLSL water shader, shadows, particles
-* **Vanilla JS** – custom physics engine (gravity, buoyancy, water drag, collision)
+* **Vanilla JS** – custom physics engine (gravity, buoyancy, water drag, hoop collision)
 * **localStorage** – high score persistence
-* Zero dependencies beyond Three.js CDN – open `index.html` and play!
+* Zero dependencies beyond Three.js – open `index.html` and play!
