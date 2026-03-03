@@ -1,5 +1,5 @@
 /* ============================================================
-   水中投篮  –  Water Basketball
+   水中投篮套圈  –  Water Basketball & Ring Toss
    game.js  –  Main game script (Three.js r160, custom physics)
    ============================================================ */
 'use strict';
@@ -49,6 +49,9 @@ const CFG = {
     medium: { scatter: 0.09, hoopSpd: 0.70 },
     hard:   { scatter: 0.17, hoopSpd: 1.30 },
   },
+
+  // Game modes
+  MODES: ['basketball', 'ringtoss'],
 };
 
 // ============================================================
@@ -61,8 +64,10 @@ let hoopT = 0;           // oscillation time
 let aimDiscMesh = null;  // aim indicator disc at hoop level
 let trajLine, trajPositions;
 let bubblePositions, bubbleSpeeds, bubbleSystem;
-let ball = null;         // current active Ball instance
+let ball = null;         // current active Ball or Ring instance (shared interface)
 let particles = [];
+let pegs = [];           // ring toss pegs
+let waterJetMesh = null; // water jet visual effect
 const mouse = { x: 0, y: 0, nx: 0, ny: 0 };
 let charging = false;
 let chargeT  = 0;
@@ -76,6 +81,7 @@ const GS = {
   aiAssist: false, difficulty: 'medium', timerID: null,
   waitingToShoot: true,
   totalThrown: 0, totalScored: 0,
+  mode: 'basketball',
 };
 
 // ============================================================
@@ -604,6 +610,302 @@ class Ball {
 }
 
 // ============================================================
+// 12b. RING CLASS (for ring toss mode)
+// ============================================================
+const RING_COLORS = [0xff3333, 0x33cc55, 0x3399ff, 0xffcc00];
+let ringColorIdx = 0;
+
+class Ring {
+  constructor(vx, vy, vz = 0) {
+    this.pos    = new THREE.Vector3(0, CFG.BALL_START_Y, 0);
+    this.vel    = new THREE.Vector3(vx, vy, vz);
+    this.prevY  = CFG.BALL_START_Y;
+    this.scored = false;
+    this.alive  = true;
+    this.age    = 0;
+    this.pegHit = null;
+
+    const color = RING_COLORS[ringColorIdx % RING_COLORS.length];
+    ringColorIdx++;
+    const geo = new THREE.TorusGeometry(0.15, 0.03, 10, 24);
+    const mat = new THREE.MeshStandardMaterial({
+      color: color, roughness: 0.5, metalness: 0.2,
+      emissive: color, emissiveIntensity: 0.15,
+    });
+    this.mesh = new THREE.Mesh(geo, mat);
+    this.mesh.castShadow = true;
+    this.mesh.position.copy(this.pos);
+    scene.add(this.mesh);
+  }
+
+  get settled() {
+    return this.age > 2.5 && this.vel.length() < 0.5;
+  }
+
+  update(dt) {
+    if (!this.alive) return;
+    this.age   += dt;
+    this.prevY  = this.pos.y;
+
+    // Slightly lighter than ball: more buoyancy, less drag
+    this.vel.y += (CFG.GRAVITY + CFG.BUOYANCY * 1.1) * dt;
+
+    const speed = this.vel.length();
+    if (speed > 0.001) {
+      const drag = Math.min(CFG.WATER_DRAG * 0.9 * speed * dt, speed);
+      this.vel.addScaledVector(this.vel, -drag / speed);
+    }
+
+    this.vel.x += currentVec.x * dt;
+    this.vel.z += currentVec.z * dt;
+
+    this.pos.addScaledVector(this.vel, dt);
+
+    // Floor
+    if (this.pos.y < CFG.FLOOR_Y + 0.05) {
+      this.pos.y  = CFG.FLOOR_Y + 0.05;
+      this.vel.y  = Math.abs(this.vel.y) * CFG.BOUNCE_DAMP;
+      this.vel.x *= CFG.BOUNCE_DAMP;
+      this.vel.z *= CFG.BOUNCE_DAMP;
+      spawnBounceParticle(this.pos.x, this.pos.y, this.pos.z);
+    }
+
+    // Ceiling
+    if (this.pos.y > CFG.CEIL_Y - 0.05) {
+      this.pos.y = CFG.CEIL_Y - 0.05;
+      this.vel.y = -Math.abs(this.vel.y) * CFG.BOUNCE_DAMP;
+    }
+
+    // Side walls
+    const hw = CFG.TW / 2 - 0.18;
+    if (Math.abs(this.pos.x) > hw) {
+      this.pos.x  = Math.sign(this.pos.x) * hw;
+      this.vel.x *= -CFG.BOUNCE_DAMP;
+      spawnBounceParticle(this.pos.x, this.pos.y, this.pos.z);
+    }
+
+    // Front/back walls
+    const hd = CFG.TD / 2 - 0.18;
+    if (Math.abs(this.pos.z) > hd) {
+      this.pos.z  = Math.sign(this.pos.z) * hd;
+      this.vel.z *= -CFG.BOUNCE_DAMP;
+    }
+
+    // Peg scoring check: ring near peg top and slow
+    if (!this.scored) {
+      for (const peg of pegs) {
+        if (!peg.mesh.visible) continue;
+        const dx = this.pos.x - peg.x;
+        const dz = this.pos.z - peg.z;
+        const dist2D = Math.sqrt(dx * dx + dz * dz);
+        const pegTopY = CFG.FLOOR_Y + peg.height;
+        if (dist2D < 0.22 && Math.abs(this.pos.y - pegTopY) < 0.3 && this.vel.length() < 1.5) {
+          this.scored = true;
+          this.pegHit = peg;
+          onRingScored(peg);
+          break;
+        }
+      }
+    }
+
+    // Mesh sync + rotation (ring lies flat, tilts with velocity)
+    this.mesh.position.copy(this.pos);
+    this.mesh.rotation.x = Math.PI / 2 + this.vel.z * 0.1;
+    this.mesh.rotation.z = -this.vel.x * 0.1;
+  }
+
+  dispose() {
+    scene.remove(this.mesh);
+    this.mesh.geometry.dispose();
+    this.mesh.material.dispose();
+    this.alive = false;
+  }
+}
+
+// ============================================================
+// 12c. DEVICE FRAME (handheld toy casing)
+// ============================================================
+function createDeviceFrame() {
+  const TW = CFG.TW, TH = CFG.CEIL_Y - CFG.FLOOR_Y;
+  const cy = CFG.FLOOR_Y + TH / 2;
+  const frameW = TW + 0.8;
+  const frameH = TH + 1.2;
+  const frameD = 0.4;
+  const thick  = 0.35;
+
+  const frameMat = new THREE.MeshStandardMaterial({
+    color: 0x66bbdd, roughness: 0.6, metalness: 0.1,
+    emissive: 0x112233, emissiveIntensity: 0.2,
+  });
+
+  // Left border
+  const leftBar = new THREE.Mesh(
+    new THREE.BoxGeometry(thick, frameH, frameD), frameMat
+  );
+  leftBar.position.set(-frameW / 2 + thick / 2, cy, CFG.TD / 2 + frameD / 2);
+  scene.add(leftBar);
+
+  // Right border
+  const rightBar = new THREE.Mesh(
+    new THREE.BoxGeometry(thick, frameH, frameD), frameMat
+  );
+  rightBar.position.set(frameW / 2 - thick / 2, cy, CFG.TD / 2 + frameD / 2);
+  scene.add(rightBar);
+
+  // Top border
+  const topBar = new THREE.Mesh(
+    new THREE.BoxGeometry(frameW, thick, frameD), frameMat
+  );
+  topBar.position.set(0, cy + frameH / 2 - thick / 2, CFG.TD / 2 + frameD / 2);
+  scene.add(topBar);
+
+  // Bottom border
+  const bottomBar = new THREE.Mesh(
+    new THREE.BoxGeometry(frameW, thick * 1.5, frameD), frameMat
+  );
+  bottomBar.position.set(0, cy - frameH / 2 + thick * 0.75, CFG.TD / 2 + frameD / 2);
+  scene.add(bottomBar);
+
+  // Rounded corners using cylinders
+  const cornerGeo = new THREE.CylinderGeometry(thick / 2, thick / 2, frameD, 12);
+  const corners = [
+    [-frameW / 2 + thick / 2, cy + frameH / 2 - thick / 2],
+    [ frameW / 2 - thick / 2, cy + frameH / 2 - thick / 2],
+    [-frameW / 2 + thick / 2, cy - frameH / 2 + thick * 0.75],
+    [ frameW / 2 - thick / 2, cy - frameH / 2 + thick * 0.75],
+  ];
+  corners.forEach(([x, y]) => {
+    const c = new THREE.Mesh(cornerGeo, frameMat);
+    c.rotation.x = Math.PI / 2;
+    c.position.set(x, y, CFG.TD / 2 + frameD / 2);
+    scene.add(c);
+  });
+
+  // Two small buttons at bottom
+  const btnMat = new THREE.MeshStandardMaterial({
+    color: 0xeeeeee, roughness: 0.3, metalness: 0.1,
+  });
+  const btnGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.08, 16);
+  [-0.8, 0.8].forEach(bx => {
+    const btn = new THREE.Mesh(btnGeo, btnMat);
+    btn.rotation.x = Math.PI / 2;
+    btn.position.set(bx, cy - frameH / 2 + thick * 0.75, CFG.TD / 2 + frameD + 0.02);
+    scene.add(btn);
+  });
+}
+
+// ============================================================
+// 12d. RING TOSS PEGS
+// ============================================================
+function createPegs() {
+  const pegPositions = [
+    { x: -2.4, z: 0, points: 1 },
+    { x: -1.2, z: 0, points: 2 },
+    { x:  0.0, z: 0, points: 3 },
+    { x:  1.2, z: 0, points: 2 },
+    { x:  2.4, z: 0, points: 1 },
+  ];
+  const pegHeight = 1.2;
+  const pegMat = new THREE.MeshStandardMaterial({
+    color: 0xddddaa, roughness: 0.4, metalness: 0.3,
+  });
+  const capMat = new THREE.MeshStandardMaterial({
+    color: 0xff4466, roughness: 0.3, metalness: 0.2,
+    emissive: 0xff2244, emissiveIntensity: 0.15,
+  });
+
+  pegPositions.forEach(cfg => {
+    const group = new THREE.Group();
+
+    // Peg cylinder
+    const pegGeo = new THREE.CylinderGeometry(0.08, 0.08, pegHeight, 10);
+    const pegMesh = new THREE.Mesh(pegGeo, pegMat);
+    pegMesh.position.y = pegHeight / 2;
+    group.add(pegMesh);
+
+    // Cap sphere on top
+    const capGeo = new THREE.SphereGeometry(0.12, 10, 8);
+    const capMesh = new THREE.Mesh(capGeo, capMat);
+    capMesh.position.y = pegHeight + 0.06;
+    group.add(capMesh);
+
+    group.position.set(cfg.x, CFG.FLOOR_Y, cfg.z);
+    group.visible = false; // hidden by default (basketball mode)
+    scene.add(group);
+
+    pegs.push({ mesh: group, x: cfg.x, z: cfg.z, points: cfg.points, height: pegHeight });
+  });
+}
+
+// ============================================================
+// 12e. WATER JET EFFECT
+// ============================================================
+function createWaterJet() {
+  const geo = new THREE.ConeGeometry(0.2, 1.0, 12);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0x44aaff, transparent: true, opacity: 0.0, depthWrite: false,
+  });
+  waterJetMesh = new THREE.Mesh(geo, mat);
+  waterJetMesh.position.set(0, CFG.FLOOR_Y + 0.5, 0);
+  waterJetMesh.visible = false;
+  scene.add(waterJetMesh);
+}
+
+function updateWaterJet() {
+  if (!waterJetMesh) return;
+  if (charging && GS.phase === 'playing') {
+    waterJetMesh.visible = true;
+    const s = 0.3 + chargeT * 1.5;
+    waterJetMesh.scale.set(s, s, s);
+    waterJetMesh.material.opacity = 0.15 + chargeT * 0.25;
+    waterJetMesh.position.y = CFG.FLOOR_Y + 0.5 * s;
+  } else {
+    waterJetMesh.visible = false;
+    waterJetMesh.material.opacity = 0;
+  }
+}
+
+// ============================================================
+// 12f. RING TOSS SCORING
+// ============================================================
+function onRingScored(peg) {
+  GS.combo++;
+  const mult = Math.min(GS.combo, 5);
+  const gain = peg.points * mult;
+  GS.score += gain;
+  GS.totalScored++;
+
+  // Show floating score at peg position
+  const pegPos = new THREE.Vector3(peg.x, CFG.FLOOR_Y + peg.height, peg.z);
+  const sv = pegPos.project(camera);
+  const sx = (sv.x * 0.5 + 0.5) * innerWidth;
+  const sy = (1 - (sv.y * 0.5 + 0.5)) * innerHeight;
+  showFloatingScore('+' + gain, sx, sy);
+
+  // Flash the peg cap
+  if (peg.mesh.children.length > 1) {
+    const cap = peg.mesh.children[1];
+    cap.material.emissiveIntensity = 1.4;
+    setTimeout(() => { cap.material.emissiveIntensity = 0.15; }, 400);
+  }
+
+  const flash = document.getElementById('hit-flash');
+  flash.classList.remove('flash');
+  void flash.offsetWidth;
+  flash.classList.add('flash');
+
+  if (GS.combo >= 2) {
+    const el = document.getElementById('combo-popup');
+    el.textContent = mult + '× COMBO!';
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+  }
+
+  updateHUD();
+}
+
+// ============================================================
 // 13. PARTICLES  (bounce / splash feedback)
 // ============================================================
 class Particle {
@@ -719,7 +1021,11 @@ function doThrow(vx, power) {
   const diff = CFG.DIFF[GS.difficulty];
   const sx   = (Math.random() - 0.5) * diff.scatter * 2;
   const sz   = (Math.random() - 0.5) * diff.scatter;
-  ball = new Ball(vx + sx, power, sz);
+  if (GS.mode === 'ringtoss') {
+    ball = new Ring(vx + sx, power, sz);
+  } else {
+    ball = new Ball(vx + sx, power, sz);
+  }
   GS.ballsLeft--;
   GS.totalThrown++;
   GS.waitingToShoot = false;
@@ -919,6 +1225,13 @@ function startGame() {
     document.getElementById('diff-select').value = GS.difficulty;
   }
 
+  /* Sync mode from start-screen selector */
+  const startMode = document.getElementById('mode-select-start');
+  if (startMode) {
+    GS.mode = startMode.value;
+    document.getElementById('mode-select').value = GS.mode;
+  }
+
   GS.phase          = 'playing';
   GS.score          = 0;
   GS.ballsLeft      = CFG.TOTAL_BALLS;
@@ -935,6 +1248,11 @@ function startGame() {
   /* Clear particles */
   particles.forEach(p => p.dispose());
   particles = [];
+
+  /* Show/hide hoop vs pegs based on mode */
+  const isRingToss = GS.mode === 'ringtoss';
+  if (hoopGroup) hoopGroup.visible = !isRingToss;
+  pegs.forEach(p => { p.mesh.visible = isRingToss; });
 
   /* Random water current — magnitude scaled by hoopSpd */
   const diff   = CFG.DIFF[GS.difficulty];
@@ -1017,6 +1335,15 @@ function wireUI() {
   document.getElementById('diff-select').addEventListener('change', e => {
     GS.difficulty = e.target.value;
   });
+
+  document.getElementById('mode-select').addEventListener('change', e => {
+    GS.mode = e.target.value;
+    const startMode = document.getElementById('mode-select-start');
+    if (startMode) startMode.value = GS.mode;
+    const isRingToss = GS.mode === 'ringtoss';
+    if (hoopGroup) hoopGroup.visible = !isRingToss;
+    pegs.forEach(p => { p.mesh.visible = isRingToss; });
+  });
 }
 
 // ============================================================
@@ -1033,10 +1360,15 @@ function animate() {
   updateBubbles(dt);
 
   if (GS.phase === 'playing') {
-    /* ── Hoop oscillation ── */
+    /* ── Hoop oscillation (only in basketball mode) ── */
     const hoopSpd = CFG.HOOP_SPD * CFG.DIFF[GS.difficulty].hoopSpd / 0.65;
     hoopT += dt * hoopSpd;
-    hoopGroup.position.x = Math.sin(hoopT) * CFG.HOOP_AMP;
+    if (GS.mode === 'basketball') {
+      hoopGroup.position.x = Math.sin(hoopT) * CFG.HOOP_AMP;
+    }
+
+    /* ── Water jet effect ── */
+    updateWaterJet();
 
     /* ── Charge bar ── */
     if (charging) {
@@ -1064,10 +1396,17 @@ function animate() {
     if (ball) {
       ball.update(dt);
 
-      /* Combo reset: ball is descending past hoop, not scored */
-      if (ball.alive && ball.age > 1.5 && !ball.scored &&
-          ball.pos.y < CFG.HOOP_Y - 0.3 && ball.vel.y < 0) {
-        GS.combo = 0;
+      /* Combo reset: basketball mode - ball descending past hoop, not scored;
+         ringtoss mode - ring settled on floor without hitting a peg */
+      if (GS.mode === 'basketball') {
+        if (ball.alive && ball.age > 1.5 && !ball.scored &&
+            ball.pos.y < CFG.HOOP_Y - 0.3 && ball.vel.y < 0) {
+          GS.combo = 0;
+        }
+      } else {
+        if (ball.alive && ball.age > 2.5 && !ball.scored && ball.settled) {
+          GS.combo = 0;
+        }
       }
 
       /* Reset conditions: scored (brief delay) OR settled OR hard timeout */
@@ -1107,12 +1446,15 @@ window.addEventListener('DOMContentLoaded', () => {
   initThree();
   createLights();
   createTank();
+  createDeviceFrame();
   createWaterCap();
   createFloor();
   createHoop();
+  createPegs();
   createBubbleSystem();
   createAimIndicator();
   createTrajectoryLine();
+  createWaterJet();
   setupInput();
   wireUI();
   animate();

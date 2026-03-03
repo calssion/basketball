@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>水中投篮 – Water Basketball</title>
+  <title>水中投篮套圈 – Water Basketball &amp; Ring Toss</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -27,7 +27,7 @@
     </div>
     <div class="hud-sep"></div>
     <div class="hud-item" id="hud-rings">
-      <span class="hud-label">球数 Balls</span>
+      <span class="hud-label">剩余 Throws</span>
       <span class="hud-value" id="hud-rings-val">20</span>
     </div>
     <div class="hud-sep"></div>
@@ -67,6 +67,10 @@
       <option value="medium" selected>普通 Normal</option>
       <option value="hard">困难 Hard</option>
     </select>
+    <select id="mode-select" class="ai-btn" title="Game Mode">
+      <option value="basketball" selected>🏀 投篮</option>
+      <option value="ringtoss">🔴 套圈</option>
+    </select>
   </div>
 
   <!-- Hit flash border -->
@@ -74,11 +78,11 @@
 
   <!-- ── START SCREEN ──────────────────────────────────────── -->
   <div class="screen" id="start-screen">
-    <h1>🌊 水中投篮 🏀</h1>
-    <h2>Water Basketball</h2>
+    <h1>🌊 水中投篮套圈 🏀</h1>
+    <h2>Water Basketball &amp; Ring Toss</h2>
 
-    <p>将篮球射入水中的篮框得分！<br>
-       Shoot the ball through the oscillating hoop to score!</p>
+    <p>将篮球射入水中的篮框得分，或将圆环套在立柱上！<br>
+       Shoot basketballs through the hoop or toss rings onto pegs!</p>
 
     <div class="instructions">
       <div class="instr-chip">🖱️ 移动鼠标瞄准<br>Move mouse to aim left/right</div>
@@ -94,6 +98,15 @@
       <div class="legend-item"><span class="dot dot-yellow"></span> ×2 combo</div>
       <div class="legend-item"><span class="dot dot-blue"></span>   ×3 combo</div>
       <div class="legend-item"><span class="dot dot-gold"></span>   ×5 combo ⭐</div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;">
+      <label style="font-size:14px;color:#88bbdd;">模式 Mode:</label>
+      <select id="mode-select-start" class="ai-btn"
+              onchange="document.getElementById('mode-select').value=this.value;">
+        <option value="basketball" selected>🏀 投篮 Basketball</option>
+        <option value="ringtoss">🔴 套圈 Ring Toss</option>
+      </select>
     </div>
 
     <div style="display:flex;gap:12px;align-items:center;">
